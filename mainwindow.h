@@ -63,8 +63,7 @@ private:
     void saveas();
     void _close();
     void closeEvent(QCloseEvent *event);
-
-
+    //void mergeCharFormat(QTextCharFormat format);
 };
 
 #endif // MAINWINDOW_H

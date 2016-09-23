@@ -295,10 +295,15 @@ void MainWindow::addUnderLine(bool checked)
 void MainWindow::setFont()
 {
     bool ok;
+    QTextCursor cursor=ui->textEdit->textCursor();
     QFont font=QFontDialog::getFont(&ok,this);
     QTextCharFormat format;
     format.setFont(font);
-    if(ok) ui->textEdit->textCursor().setCharFormat(format);
+    if(!cursor.hasSelection())
+    {
+        cursor.select(QTextCursor::WordUnderCursor);
+    }
+    if(ok) cursor.setCharFormat(format);
 }
 
 void MainWindow::alignLeft()
