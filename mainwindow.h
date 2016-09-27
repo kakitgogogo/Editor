@@ -8,6 +8,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QCloseEvent>
+#include <QTextCharFormat>
 
 namespace Ui {
 class MainWindow;
@@ -26,14 +27,11 @@ private slots:
     void Open();
     void Save();
     void SaveAs();
+    void Preview(QPrinter *printer);
+    void PrintPreview();
     void Export_as_PDF();
     void Exit();
 
-    void Undo();
-    void Redo();
-    void Cut();
-    void Copy();
-    void Paste();
     void Find();
 
     void insertImage();
@@ -49,21 +47,22 @@ private slots:
     void alignRight();
     void alignJustify();
     void setFontColor();
+    void currentCharFormatChanged(QTextCharFormat format);
 
 private:
     Ui::MainWindow *ui;
 
     QString curFileName,curDir;  //当前文件和目录
 
+    void initWindow();
     void setPath(const QString& filename);
     MainWindow* create();
     void load(const QString& filename);
-    void _save(const QString& filename);
+    void _save();
     void save();
     void saveas();
-    void _close();
     void closeEvent(QCloseEvent *event);
-    //void mergeCharFormat(QTextCharFormat format);
+    void mergeCharFormat(const QTextCharFormat& format);
 };
 
 #endif // MAINWINDOW_H

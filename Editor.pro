@@ -19,7 +19,8 @@ HEADERS  += mainwindow.h
 
 FORMS    += mainwindow.ui
 
-RESOURCES +=
+RESOURCES += \
+    images.qrc
 
 qtHaveModule(printsupport): QT += printsupport
 

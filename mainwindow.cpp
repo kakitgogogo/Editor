@@ -6,6 +6,8 @@
 #include <QColorDialog>
 #include <QFont>
 #include <QFontDialog>
+#include <QTextDocumentWriter>
+#include <QTextCodec>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -13,7 +15,8 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    setWindowState(Qt::WindowMaximized);
+   // setWindowState(Qt::WindowMaximized);
+    //setWindowOpacity(0.8);
 
     ui->actionBold->setCheckable(true);
     ui->actionItalic->setCheckable(true);
@@ -23,14 +26,20 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionOpen,SIGNAL(triggered()),this,SLOT(Open()));
     connect(ui->actionSave,SIGNAL(triggered()),this,SLOT(Save()));
     connect(ui->actionSaveAs,SIGNAL(triggered()),this,SLOT(SaveAs()));
+    connect(ui->actionPrintPreview,SIGNAL(triggered()),this,SLOT(PrintPreview()));
     connect(ui->action_Export_as_PDF,SIGNAL(triggered()),this,SLOT(Export_as_PDF()));
     connect(ui->actionExit,SIGNAL(triggered()),this,SLOT(Exit()));
 
-    connect(ui->actionUndo,SIGNAL(triggered()),this,SLOT(Undo()));
-    connect(ui->actionRedo,SIGNAL(triggered()),this,SLOT(Redo()));
-    connect(ui->actionCut,SIGNAL(triggered()),this,SLOT(Cut()));
-    connect(ui->actionCopy,SIGNAL(triggered()),this,SLOT(Copy()));
-    connect(ui->actionPaste,SIGNAL(triggered()),this,SLOT(Paste()));
+    connect(ui->actionUndo,SIGNAL(triggered()),ui->textEdit,SLOT(undo()));
+    connect(ui->textEdit->document(), SIGNAL(undoAvailable(bool)),ui->actionUndo, SLOT(setEnabled(bool)));
+    connect(ui->actionRedo,SIGNAL(triggered()),ui->textEdit,SLOT(redo()));
+    connect(ui->textEdit->document(), SIGNAL(redoAvailable(bool)),ui->actionRedo, SLOT(setEnabled(bool)));
+    connect(ui->actionCut,SIGNAL(triggered()),ui->textEdit,SLOT(cut()));
+    connect(ui->textEdit,SIGNAL(copyAvailable(bool)),ui->actionCut,SLOT(setEnabled(bool)));
+    connect(ui->actionCopy,SIGNAL(triggered()),ui->textEdit,SLOT(copy()));
+    connect(ui->textEdit,SIGNAL(copyAvailable(bool)),ui->actionCopy,SLOT(setEnabled(bool)));
+    connect(ui->actionPaste,SIGNAL(triggered()),ui->textEdit,SLOT(paste()));
+    connect(ui->textEdit,SIGNAL(pasteAvailable(bool)),ui->actionPaste,SLOT(setEnabled(bool)));
     connect(ui->actionFind,SIGNAL(triggered()),this,SLOT(Find()));
 
     connect(ui->actionImage,SIGNAL(triggered()),this,SLOT(insertImage()));
@@ -46,6 +55,7 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionRight,SIGNAL(triggered()),this,SLOT(alignRight()));
     connect(ui->actionJustify,SIGNAL(triggered()),this,SLOT(alignJustify()));
     connect(ui->actionColor,SIGNAL(triggered()),this,SLOT(setFontColor()));
+    connect(ui->textEdit,SIGNAL(currentCharFormatChanged(QTextCharFormat)),this,SLOT(currentCharFormatChanged(QTextCharFormat)));
 
     ui->mainToolBar->addAction(ui->actionFont);
     ui->mainToolBar->addAction(ui->actionColor);
@@ -58,6 +68,9 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->mainToolBar->addAction(ui->actionRight);
     ui->mainToolBar->addAction(ui->actionJustify);
     ui->mainToolBar->addSeparator();
+
+    //qDebug()<<children();
+    initWindow();
 }
 
 MainWindow::~MainWindow()
@@ -65,11 +78,17 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-
-void MainWindow::setPath(const QString &filename)
+void MainWindow::initWindow()
 {
-    curFileName=filename;
-    curDir=QFileInfo(curFileName).absoluteDir().dirName();
+    QFont textFont("Helvetica");
+    textFont.setWeight(15);
+    ui->textEdit->setFont(textFont);
+
+    ui->actionUndo->setEnabled(false);
+    ui->actionRedo->setEnabled(false);
+    ui->actionCut->setEnabled(false);
+    ui->actionCopy->setEnabled(false);
+    ui->actionPaste->setEnabled(true);
 }
 
 MainWindow* MainWindow::create()
@@ -84,44 +103,50 @@ void MainWindow::load(const QString& filename)
     QFile file(filename);
     if(file.open(QIODevice::ReadOnly))
     {
-        QTextStream textStream(&file);
-        while(!textStream.atEnd())
+        QByteArray data = file.readAll();
+        QTextCodec *codec = Qt::codecForHtml(data);
+        QString str = codec->toUnicode(data);
+        if (Qt::mightBeRichText(str))
         {
-            ui->textEdit->append(textStream.readLine());
+            ui->textEdit->setHtml(str);
         }
-        textStream.flush();
-        file.close();
-
-        setPath(filename);
-        setWindowTitle(curFileName);
+        else
+        {
+            str = QString::fromLocal8Bit(data);
+            ui->textEdit->setPlainText(str);
+        }
+    }
+    else
+    {
+        QMessageBox::warning(this,"Waring","Open failed");
     }
 }
 
-void MainWindow::_save(const QString& filename)
+void MainWindow::_save()
 {
-    if(!filename.isEmpty()&&!QFileInfo(filename).suffix().isEmpty())
+    qDebug()<<curFileName;
+    if(!curFileName.isEmpty())
     {
-        QFile file(filename);
-        //qDebug()<<"filename: "<<filename;
-        if(!file.open(QIODevice::WriteOnly))
+        QTextDocumentWriter writer(curFileName);
+        bool ok=writer.write(ui->textEdit->document());
+        if (ok)
+            ui->textEdit->document()->setModified(false);
+        else
         {
-            QMessageBox::warning(this,"Error","Can't open file.");
+            QMessageBox::warning(this,"Waring","Save failed");
         }
-        QTextStream textStream(&file);
-        textStream<<ui->textEdit->toPlainText();
-        textStream.flush();
-        file.close();
 
-        setPath(filename);
         setWindowTitle(curFileName);
     }
 }
 
 void MainWindow::saveas()
 {
-    if(curFileName.isEmpty()) curFileName="???.txt";
-    QString filename=QFileDialog::getSaveFileName(this,"Save",curFileName," *.txt;; *.docx");
-    _save(filename);
+    QString temp=curFileName;
+    if(temp.isEmpty()) temp="???.odt";
+    curFileName=QFileDialog::getSaveFileName(this, tr("Save as..."), temp,
+                                              tr("ODF Files (*.odt);;HTML Files (*.htm *.html);;TXT Files (*.txt);;All Files (*)"));
+    _save();
 }
 
 void MainWindow::save()
@@ -132,30 +157,32 @@ void MainWindow::save()
     }
     else
     {
-        _save(curFileName);
-    }
-}
-
-void MainWindow::_close()
-{
-    int resp=QMessageBox::question(this,"Question","Save before closing?");
-    if(resp==QMessageBox::Yes)
-    {
-        save();
+        _save();
     }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    int resp=QMessageBox::question(this,"Question","Are you sure?");
-    if(resp==QMessageBox::Yes)
+    if(!ui->textEdit->document()->isModified())
     {
-        _close();
         event->accept();
     }
     else
     {
-        event->ignore();
+        int ret = QMessageBox::warning(this, tr("Application"),
+                               tr("The document has been modified.\n"
+                                  "Do you want to save your changes?"),
+                               QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+        if (ret == QMessageBox::Cancel)
+        {
+            event->ignore();
+            return;
+        }
+        if (ret == QMessageBox::Save)
+        {
+            save();
+        }
+        event->accept();
     }
 }
 
@@ -166,12 +193,15 @@ void MainWindow::New()
 
 void MainWindow::Open()
 {
-    QString filename=QFileDialog::getOpenFileName(this,"Open",curFileName,"*.txt;;*.docx");
+    QString filename=QFileDialog::getOpenFileName(this,"Open",curFileName,
+                                tr("ODF Files (*.odt);;HTML Files (*.htm *.html);;TXT Files (*.txt);;All Files (*)"));
+    if(filename==curFileName) return;
     if(!filename.isEmpty()&&!QFileInfo(filename).suffix().isEmpty())
     {
-        if(ui->textEdit||ui->textEdit->document()->isEmpty())
+        if(ui->textEdit->document()->isEmpty())
         {
             curFileName=filename;
+            setWindowTitle(curFileName);
             load(filename);
         }
         else
@@ -192,6 +222,19 @@ void MainWindow::SaveAs()
     saveas();
 }
 
+void MainWindow::Preview(QPrinter* printer)
+{
+    ui->textEdit->print(printer);
+}
+
+void MainWindow::PrintPreview()
+{
+    QPrinter printer;
+    QPrintPreviewDialog preview(&printer, this);
+    connect(&preview, SIGNAL(paintRequested(QPrinter*)), SLOT(Preview(QPrinter*)));
+    preview.exec();
+}
+
 void MainWindow::Export_as_PDF()
 {
     QString filename=QFileDialog::getSaveFileName(this,"Export as PDF",curDir+"/???.pdf","*.pdf");
@@ -209,32 +252,6 @@ void MainWindow::Export_as_PDF()
 }
 
 void MainWindow::Exit()
-{
-
-}
-
-
-void MainWindow::Undo()
-{
-    ui->textEdit->undo();
-}
-
-void MainWindow::Redo()
-{
-    ui->textEdit->redo();
-}
-
-void MainWindow::Cut()
-{
-
-}
-
-void MainWindow::Copy()
-{
-
-}
-
-void MainWindow::Paste()
 {
 
 }
@@ -271,25 +288,36 @@ void MainWindow::insertList()
     ui->textEdit->textCursor().insertList(format);
 }
 
+
+void MainWindow::mergeCharFormat(const QTextCharFormat& format)
+{
+    QTextCursor cursor=ui->textEdit->textCursor();
+    if(!cursor.hasSelection())
+    {
+        cursor.select(QTextCursor::WordUnderCursor);
+    }
+    cursor.mergeCharFormat(format);
+}
+
 void MainWindow::setFontBold(bool checked)
 {
     QTextCharFormat format;
     format.setFontWeight(checked?QFont::Bold:QFont::Normal);
-    ui->textEdit->textCursor().mergeCharFormat(format);
+    mergeCharFormat(format);
 }
 
 void MainWindow::setFontItalic(bool checked)
 {
     QTextCharFormat format;
     format.setFontItalic(checked);
-    ui->textEdit->textCursor().mergeCharFormat(format);
+   mergeCharFormat(format);
 }
 
 void MainWindow::addUnderLine(bool checked)
 {
     QTextCharFormat format;
     format.setFontUnderline(checked);
-    ui->textEdit->textCursor().mergeCharFormat(format);
+    mergeCharFormat(format);
 }
 
 void MainWindow::setFont()
@@ -299,11 +327,7 @@ void MainWindow::setFont()
     QFont font=QFontDialog::getFont(&ok,this);
     QTextCharFormat format;
     format.setFont(font);
-    if(!cursor.hasSelection())
-    {
-        cursor.select(QTextCursor::WordUnderCursor);
-    }
-    if(ok) cursor.setCharFormat(format);
+    if(ok) mergeCharFormat(format);
 }
 
 void MainWindow::alignLeft()
@@ -336,11 +360,18 @@ void MainWindow::alignJustify()
 
 void MainWindow::setFontColor()
 {
-    QColorDialog dialog(Qt::black,this);
-    dialog.setOption(QColorDialog::ShowAlphaChannel);
-    dialog.exec();
-    QColor color=dialog.currentColor();
+    QColor color = QColorDialog::getColor(ui->textEdit->textColor(), this);
+    if (!color.isValid())
+        return;
     QTextCharFormat format;
     format.setForeground(color);
-    ui->textEdit->textCursor().mergeCharFormat(format);
+    mergeCharFormat(format);
+}
+
+void MainWindow::currentCharFormatChanged(QTextCharFormat format)
+{
+    QFont font=format.font();
+    ui->actionBold->setChecked(font.bold());
+    ui->actionItalic->setChecked(font.italic());
+    ui->actionUnderline->setChecked(font.underline());
 }
