@@ -81,7 +81,7 @@
     </property>
     <widget class="QMenu" name="menuCharacter">
      <property name="title">
-      <string>Character</string>
+      <string>&amp;Character</string>
      </property>
      <addaction name="actionFont"/>
      <addaction name="actionBold"/>
@@ -89,6 +89,7 @@
      <addaction name="actionUnderline"/>
     </widget>
     <addaction name="menuCharacter"/>
+    <addaction name="actionFormatPainter"/>
     <addaction name="separator"/>
     <addaction name="actionLeft"/>
     <addaction name="actionRight"/>
@@ -294,6 +295,11 @@
   <action name="actionPrintPreview">
    <property name="text">
     <string>&amp;Print Preview...</string>
+   </property>
+  </action>
+  <action name="actionFormatPainter">
+   <property name="text">
+    <string>Format &amp;Painter</string>
    </property>
   </action>
  </widget>

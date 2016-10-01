@@ -8,12 +8,19 @@
 #include <QFontDialog>
 #include <QTextDocumentWriter>
 #include <QTextCodec>
+#include <QComboBox>
+#include <QFontComboBox>
+#include <QFontDatabase>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QPushButton>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    initWindow();
 
    // setWindowState(Qt::WindowMaximized);
     //setWindowOpacity(0.8);
@@ -39,7 +46,6 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionCopy,SIGNAL(triggered()),ui->textEdit,SLOT(copy()));
     connect(ui->textEdit,SIGNAL(copyAvailable(bool)),ui->actionCopy,SLOT(setEnabled(bool)));
     connect(ui->actionPaste,SIGNAL(triggered()),ui->textEdit,SLOT(paste()));
-    connect(ui->textEdit,SIGNAL(pasteAvailable(bool)),ui->actionPaste,SLOT(setEnabled(bool)));
     connect(ui->actionFind,SIGNAL(triggered()),this,SLOT(Find()));
 
     connect(ui->actionImage,SIGNAL(triggered()),this,SLOT(insertImage()));
@@ -57,7 +63,27 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->actionColor,SIGNAL(triggered()),this,SLOT(setFontColor()));
     connect(ui->textEdit,SIGNAL(currentCharFormatChanged(QTextCharFormat)),this,SLOT(currentCharFormatChanged(QTextCharFormat)));
 
-    ui->mainToolBar->addAction(ui->actionFont);
+    QFontComboBox* comboFont = new QFontComboBox(ui->mainToolBar);
+    comboFont->setFocusPolicy(Qt::NoFocus);
+    comboFont->setMinimumSize(40,27);
+    ui->mainToolBar->addWidget(comboFont);
+    connect(comboFont, SIGNAL(activated(QString)), this, SLOT(setFontFamily(QString)));
+    comboFont->setCurrentText(defaultFontFamily);
+
+    QComboBox *comboSize=new QComboBox(ui->mainToolBar);
+    comboSize->setFocusPolicy(Qt::NoFocus);
+    comboSize->setEditable(true);
+    ui->mainToolBar->addWidget(comboSize);
+    connect(comboSize,SIGNAL(activated(QString)),this,SLOT(setFontSize(QString)));
+
+    QFontDatabase fdb;
+    foreach(int fontSize,fdb.standardSizes())
+    {
+        comboSize->addItem(QString::number(fontSize));
+    }
+    comboSize->setCurrentText(defaultFontSize);
+
+    //ui->mainToolBar->addAction(ui->actionFont);
     ui->mainToolBar->addAction(ui->actionColor);
     ui->mainToolBar->addAction(ui->actionBold);
     ui->mainToolBar->addAction(ui->actionItalic);
@@ -70,7 +96,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->mainToolBar->addSeparator();
 
     //qDebug()<<children();
-    initWindow();
 }
 
 MainWindow::~MainWindow()
@@ -80,9 +105,12 @@ MainWindow::~MainWindow()
 
 void MainWindow::initWindow()
 {
-    QFont textFont("Helvetica");
-    textFont.setWeight(15);
-    ui->textEdit->setFont(textFont);
+    defaultFontFamily="Cantarell";
+    defaultFontSize="20";
+    QTextCharFormat format;
+    format.setFontFamily(defaultFontFamily);
+    format.setFontPointSize(defaultFontSize.toFloat());
+    mergeCharFormat(format);
 
     ui->actionUndo->setEnabled(false);
     ui->actionRedo->setEnabled(false);
@@ -253,14 +281,36 @@ void MainWindow::Export_as_PDF()
 
 void MainWindow::Exit()
 {
-
+    close();
 }
 
 void MainWindow::Find()
 {
+    QDialog *dialog=new QDialog(this);
+    dialog->setWindowTitle(tr("Find"));
 
+    lineEdit=new QLineEdit(dialog);
+    QPushButton *button=new QPushButton(dialog);
+    button->setText(tr("Next"));
+    connect(button,SIGNAL(clicked()),this,SLOT(findNext()));
+
+    QHBoxLayout *layout=new QHBoxLayout;
+    layout->addWidget(lineEdit);
+    layout->addWidget(button);
+    dialog->setLayout(layout);
+
+    dialog->show();
 }
 
+void MainWindow::findNext()
+{
+    QString target=lineEdit->text();
+    bool ok=ui->textEdit->find(target,QTextDocument::FindBackward);
+    if(!ok)
+    {
+        qDebug()<<"Not found";
+    }
+}
 
 void MainWindow::insertImage()
 {
@@ -297,6 +347,7 @@ void MainWindow::mergeCharFormat(const QTextCharFormat& format)
         cursor.select(QTextCursor::WordUnderCursor);
     }
     cursor.mergeCharFormat(format);
+    ui->textEdit->mergeCurrentCharFormat(format);
 }
 
 void MainWindow::setFontBold(bool checked)
@@ -335,6 +386,20 @@ void MainWindow::alignLeft()
     QTextBlockFormat blockFormat;
     blockFormat.setAlignment(Qt::AlignLeft);
     ui->textEdit->textCursor().setBlockFormat(blockFormat);
+}
+
+void MainWindow::setFontFamily(const QString &font)
+{
+    QTextCharFormat format;
+    format.setFontFamily(font);
+    mergeCharFormat(format);
+}
+
+void MainWindow::setFontSize(const QString &fontSize)
+{
+    QTextCharFormat format;
+    format.setFontPointSize(fontSize.toFloat());
+    mergeCharFormat(format);
 }
 
 void MainWindow::alignCenter()

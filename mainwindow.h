@@ -7,6 +7,7 @@
 #include <QPrintPreviewDialog>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QLineEdit>
 #include <QCloseEvent>
 #include <QTextCharFormat>
 
@@ -33,6 +34,7 @@ private slots:
     void Exit();
 
     void Find();
+    void findNext();
 
     void insertImage();
     void insertTable();
@@ -42,6 +44,8 @@ private slots:
     void setFontItalic(bool);
     void addUnderLine(bool);
     void setFont();
+    void setFontFamily(const QString& font);
+    void setFontSize(const QString& fontSize);
     void alignLeft();
     void alignCenter();
     void alignRight();
@@ -52,7 +56,9 @@ private slots:
 private:
     Ui::MainWindow *ui;
 
+    QString defaultFontFamily,defaultFontSize;
     QString curFileName,curDir;  //当前文件和目录
+    QLineEdit *lineEdit;
 
     void initWindow();
     void setPath(const QString& filename);
